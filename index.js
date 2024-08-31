@@ -2,11 +2,18 @@ const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
 
+const cors = require('cors');
+
 
 
 const app = express();
+var corsoptions = {
+  origin : "acm-trust.vercel.app",
+}
+app.use(cors(corsoptions));
+
 app.use(express.json());
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 3000;
 const connectionString = process.env.MONGODB_URI;
 
 async function createServer() {
