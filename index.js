@@ -8,7 +8,7 @@ const cors = require('cors');
 
 const app = express();
 var corsoptions = {
-  origin : "acm-trust.vercel.app",
+  origin : "localhost:3000",
 }
 app.use(cors(corsoptions));
 
