@@ -1,8 +1,9 @@
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
-
+const bcrypt = require('bcryptjs');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 
 
 
@@ -22,7 +23,7 @@ async function createServer() {
     console.log('Connected successfully to MongoDB');
 
     const db = client.db('surveyforms');
-    const collection = db.collection('forms'); 
+     
     
     app.get('/forms', async (req, res) => {
       try {
@@ -58,6 +59,45 @@ async function createServer() {
         console.error("Error adding form:", error);
         res.status(500).json({ message: "Error adding form" });
       }
+    });
+
+    app.post('/api/register', async (req,res) => {
+      const { name , password , email } = req.body;
+      const hashedPassword = await bcrypt.hash(password,10);
+      const newUser = { name, email , password : hashedPassword};
+
+      try {
+        await db.collection('users').insertOne(newUser);
+        res.status(201).json({ message: "User registered successfully"});
+      } catch (err) {
+        res.status(500).json({ error: "Failed to register user"});
+      }
+
+    });
+
+    app.post('/api/login', async (req, res) => {
+      const {  email, password } = req.body;
+
+      try {
+        const user = await db.collection('users').findOne({
+          email
+        });
+
+        if(!user) {
+          return res.status(400).json({ error : "user not found "});
+        }
+
+        const isMatch = await bcrypt.compare(password , user.password);
+        if (!isMatch) {
+          return res.status(400).json({ error : 'Invalid credentialsn'});
+        }
+
+        const token = jwt.sign({ userId : user._id}, process.env.JWT_SECRET, { expiresIn : '1h'});
+        res.json({ token });
+      } catch (err) {
+        res.status(500).json({ error : 'failed  to login'});
+      }
+      
     });
     
 
