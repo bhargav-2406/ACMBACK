@@ -1,19 +1,19 @@
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
-const bcrypt = require('bcryptjs');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
-
-
+const multer = require('multer');
 
 const app = express();
 
 app.use(cors());
-
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 const port = process.env.PORT || 3000;
 const connectionString = process.env.MONGODB_URI;
+const storage = multer.memoryStorage(); // Store image in memory as Buffer
+const upload = multer({ storage: storage });
 
 async function createServer() {
   const client = new MongoClient(connectionString);
@@ -23,16 +23,14 @@ async function createServer() {
     console.log('Connected successfully to MongoDB');
 
     const db = client.db('surveyforms');
-     
-    
+    const formsCollection = db.collection('forms');
+    const eventsCollection = db.collection('events');
+    const ticketCollection = db.collection('tickets')
+
+    // Fetch all forms
     app.get('/forms', async (req, res) => {
       try {
-        const database = client.db("surveyforms");
-        const collection = database.collection("forms");
-        
-        // Fetch all documents from the collection
-        const forms = await collection.find({}).toArray();
-        
+        const forms = await formsCollection.find({}).toArray();
         res.status(200).json(forms);
       } catch (error) {
         console.error("Error fetching forms:", error);
@@ -40,17 +38,11 @@ async function createServer() {
       }
     });
 
+    // Add a new form
     app.post('/forms/add', async (req, res) => {
       try {
-        const database = client.db("surveyforms");
-        const collection = database.collection("forms");
-        
-        // Get the form data from the request body
         const formData = req.body;
-        
-        // Insert the form data into the collection
-        const result = await collection.insertOne(formData);
-        
+        const result = await formsCollection.insertOne(formData);
         res.status(201).json({
           message: "Form added successfully",
           insertedId: result.insertedId
@@ -61,43 +53,76 @@ async function createServer() {
       }
     });
 
-    app.post('/api/register', async (req,res) => {
-      const { name , password , email } = req.body;
-      const hashedPassword = await bcrypt.hash(password,10);
-      const newUser = { name, email , password : hashedPassword};
-
+    // Add a new event with image upload
+    app.post('/events/add', upload.single('image'), async (req, res) => {
       try {
-        await db.collection('users').insertOne(newUser);
-        res.status(201).json({ message: "User registered successfully"});
-      } catch (err) {
-        res.status(500).json({ error: "Failed to register user"});
-      }
+        const imageBuffer = req.file ? req.file.buffer : null;
+        const { eventName, eventDate, eventTime, eventLocation, eventDescription } = req.body;
 
+        const eventDocument = {
+          eventName,
+          eventDate,
+          eventTime,
+          eventLocation,
+          eventDescription,
+          image: imageBuffer
+        };
+
+        const result = await eventsCollection.insertOne(eventDocument);
+        res.status(200).json({ message: 'Event added successfully', eventId: result.insertedId });
+      } catch (err) {
+        console.error("Error adding event:", err);
+        res.status(500).json({ message: 'Failed to add event' });
+      }
     });
 
-    app.post('/api/login', async (req, res) => {
-      const {  email, password } = req.body;
-
+    // Fetch all events
+    app.get('/events', async (req, res) => {
       try {
-        const user = await db.collection('users').findOne({
-          email
+        const database = client.db("surveyforms");
+        const collection = database.collection("events");
+    
+        // Fetch all documents from the collection
+        const events = await collection.find({}).toArray();
+    
+        // Convert the image buffer to Base64 for each event
+        const eventsWithImages = events.map(event => {
+          if (event.image) {
+            // Convert Buffer to Base64 and include the MIME type (assuming JPEG)
+            event.image = `data:image/jpeg;base64,${event.image.toString('base64')}`;
+          }
+          return event;
         });
-
-        if(!user) {
-          return res.status(400).json({ error : "user not found "});
-        }
-
-        const isMatch = await bcrypt.compare(password , user.password);
-        if (!isMatch) {
-          return res.status(400).json({ error : 'Invalid credentialsn'});
-        }
-
-        const token = jwt.sign({ userId : user._id}, process.env.JWT_SECRET, { expiresIn : '1h'});
-        res.json({ token });
-      } catch (err) {
-        res.status(500).json({ error : 'failed  to login'});
+    
+        res.status(200).json(eventsWithImages);
+      } catch (error) {
+        console.error("Error fetching events:", error);
+        res.status(500).json({ message: "Error fetching events" });
       }
-      
+    });
+
+    app.post('/tickets/add', async (req, res) => {
+      try {
+        const formData = req.body;
+        const result = await ticketCollection.insertOne(formData);
+        res.status(201).json({
+          message: "Ticket added successfully",
+          insertedId: result.insertedId
+        });
+      } catch (error) {
+        console.error("Error adding ticket:", error);
+        res.status(500).json({ message: "Error adding ticket" });
+      }
+    });
+
+    app.get('/tickets', async (req, res) => {
+      try {
+        const forms = await ticketCollection.find({}).toArray();
+        res.status(200).json(forms);
+      } catch (error) {
+        console.error("Error fetching tickets:", error);
+        res.status(500).json({ message: "Error fetching tickets" });
+      }
     });
     
 
