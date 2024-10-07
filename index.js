@@ -13,7 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const port = process.env.PORT || 3000;
-const connectionString = process.env.MONGO_URI;
+const connectionString = process.env.MONGODB_URI;
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
