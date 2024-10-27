@@ -124,9 +124,9 @@ async function createServer() {
         if (formData.mobile) {
           try {
             const message = await twilioClient.messages.create({
-              body: `Hi ${formData.name}, your booking at ${formData.temple} on ${formData.date} at ${formData.time} has been confirmed!`,
+              body: `Dear ${formData.name}, your booking at ${formData.temple} has been confirmed for ${formData.date} at ${formData.time}. Thank you for your support of the Kaliyampoondi Village Development Trust.`,
               from: process.env.TWILIO_PHONE_NUMBER,
-              to: formData.mobile,
+              to: "+91"+formData.mobile,
             });
             console.log("SMS sent:", message.sid);
           } catch (smsError) {
