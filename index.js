@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
+const twilio = require("twilio");
 
 const app = express();
 
@@ -16,6 +17,11 @@ const port = process.env.PORT || 3000;
 const connectionString = process.env.MONGODB_URI;
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
 
 async function createServer() {
   const client = new MongoClient(connectionString);
@@ -115,8 +121,21 @@ async function createServer() {
       try {
         const formData = req.body;
         const result = await ticketCollection.insertOne(formData);
+        if (formData.mobile) {
+          try {
+            const message = await twilioClient.messages.create({
+              body: `Hi ${formData.name}, your booking at ${formData.temple} on ${formData.date} at ${formData.time} has been confirmed!`,
+              from: process.env.TWILIO_PHONE_NUMBER,
+              to: formData.mobile,
+            });
+            console.log("SMS sent:", message.sid);
+          } catch (smsError) {
+            console.error("Failed to send SMS:", smsError);
+          }
+        }
+
         res.status(201).json({
-          message: "Ticket added successfully",
+          message: "Ticket added successfully and SMS sent!",
           insertedId: result.insertedId,
         });
       } catch (error) {
