@@ -96,6 +96,20 @@ async function createServer() {
       }
     });
 
+    app.delete("/events/:id", async (req, res) => {
+      try {
+        const eventId = new ObjectId(req.params.id);
+        const result = await eventsCollection.deleteOne({ _id: eventId });
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: "Event not found" });
+        }
+        res.status(200).json({ message: "Event deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting event:", error);
+        res.status(500).json({ message: "Error deleting event" });
+      }
+    });
+
     app.get("/events", async (req, res) => {
       try {
         const collection = surveyDB.collection("events");
