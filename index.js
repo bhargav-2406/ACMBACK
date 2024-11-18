@@ -18,6 +18,31 @@ const connectionString = process.env.MONGODB_URI;
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+const authenticateToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: "Access denied. No token provided." });
+    }
+
+    try {
+      const verified = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = verified;
+      next();
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: "Token expired. Please login again." });
+      }
+      return res.status(400).json({ error: "Invalid token." });
+    }
+  } catch (error) {
+    console.error("Authentication error:", error);
+    res.status(500).json({ error: "Authentication failed" });
+  }
+};
+
 const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
@@ -34,7 +59,7 @@ async function createServer() {
     const ticketCollection = surveyDB.collection("tickets");
     const eventsCollection = surveyDB.collection("events");
 
-    app.get("/forms", async (req, res) => {
+    app.get("/forms", authenticateToken, async (req, res) => {
       try {
         const collection = surveyDB.collection("forms");
 
@@ -47,7 +72,7 @@ async function createServer() {
       }
     });
 
-    app.post("/forms/add", async (req, res) => {
+    app.post("/forms/add", authenticateToken ,async (req, res) => {
       try {
         const collection = surveyDB.collection("forms");
 
@@ -65,7 +90,7 @@ async function createServer() {
       }
     });
 
-    app.post("/events/add", upload.single("image"), async (req, res) => {
+    app.post("/events/add", authenticateToken ,upload.single("image"), async (req, res) => {
       try {
         const imageBuffer = req.file ? req.file.buffer : null;
         const {
@@ -96,7 +121,7 @@ async function createServer() {
       }
     });
 
-    app.delete("/events/:id", async (req, res) => {
+    app.delete("/events/:id", authenticateToken, async (req, res) => {
       try {
         const eventId = new ObjectId(req.params.id);
         const result = await eventsCollection.deleteOne({ _id: eventId });
@@ -110,7 +135,7 @@ async function createServer() {
       }
     });
 
-    app.get("/events", async (req, res) => {
+    app.get("/events", authenticateToken, async (req, res) => {
       try {
         const collection = surveyDB.collection("events");
         const events = await collection.find({}).toArray();
@@ -131,7 +156,7 @@ async function createServer() {
       }
     });
 
-    app.post("/tickets/add", async (req, res) => {
+    app.post("/tickets/add", authenticateToken, async (req, res) => {
       try {
         const formData = req.body;
         const result = await ticketCollection.insertOne(formData);
@@ -158,7 +183,7 @@ async function createServer() {
       }
     });
 
-    app.get("/tickets", async (req, res) => {
+    app.get("/tickets", authenticateToken, async (req, res) => {
       try {
         const forms = await ticketCollection.find({}).toArray();
         res.status(200).json(forms);
@@ -168,7 +193,7 @@ async function createServer() {
       }
     });
 
-    app.post("/api/admin/register", async (req, res) => {
+    app.post("/api/admin/register", authenticateToken, async (req, res) => {
       const { name, password, email } = req.body;
 
       if (!name || !password || !email) {
@@ -193,7 +218,7 @@ async function createServer() {
       }
     });
 
-    app.post("/api/admin/login", async (req, res) => {
+    app.post("/api/admin/login", authenticateToken, async (req, res) => {
       const { email, password } = req.body;
       if (!email || !password) {
         return res
@@ -220,7 +245,7 @@ async function createServer() {
       }
     });
 
-    app.post("/api/register", async (req, res) => {
+    app.post("/api/register", authenticateToken, async (req, res) => {
       const { name, password, email } = req.body;
 
       if (!name || !password || !email) {
@@ -246,7 +271,7 @@ async function createServer() {
       }
     });
 
-    app.post("/api/login", async (req, res) => {
+    app.post("/api/login", authenticateToken, async (req, res) => {
       const { email, password } = req.body;
 
       if (!email || !password) {
