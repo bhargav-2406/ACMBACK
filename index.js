@@ -131,6 +131,78 @@ async function createServer() {
       }
     });
 
+    // Add these endpoints to your Express server
+
+    app.post("/carousel/add", upload.single("image"), async (req, res) => {
+      try {
+        const imageBuffer = req.file ? req.file.buffer : null;
+        const { description } = req.body;
+
+        if (!imageBuffer) {
+          return res.status(400).json({ message: "Image is required" });
+        }
+
+        const carouselDocument = {
+          image: imageBuffer,
+          description: description || "Carousel Image",
+          createdAt: new Date(),
+        };
+
+        const collection = surveyDB.collection("carousel");
+        const result = await collection.insertOne(carouselDocument);
+
+        res.status(200).json({
+          message: "Carousel image added successfully",
+          imageId: result.insertedId,
+        });
+      } catch (err) {
+        console.error("Error adding carousel image:", err);
+        res.status(500).json({ message: "Failed to add carousel image" });
+      }
+    });
+
+    app.get("/carousel", async (req, res) => {
+      try {
+        const collection = surveyDB.collection("carousel");
+        const images = await collection
+          .find({})
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        const imagesWithBase64 = images.map((image) => ({
+          _id: image._id,
+          description: image.description,
+          image: `data:image/jpeg;base64,${image.image.toString("base64")}`,
+          createdAt: image.createdAt,
+        }));
+
+        res.status(200).json(imagesWithBase64);
+      } catch (error) {
+        console.error("Error fetching carousel images:", error);
+        res.status(500).json({ message: "Error fetching carousel images" });
+      }
+    });
+
+    app.delete("/carousel/:id", async (req, res) => {
+      try {
+        const imageId = new ObjectId(req.params.id);
+        const collection = surveyDB.collection("carousel");
+
+        const result = await collection.deleteOne({ _id: imageId });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: "Carousel image not found" });
+        }
+
+        res
+          .status(200)
+          .json({ message: "Carousel image deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting carousel image:", error);
+        res.status(500).json({ message: "Error deleting carousel image" });
+      }
+    });
+
     app.post("/tickets/add", async (req, res) => {
       try {
         const formData = req.body;
@@ -140,7 +212,7 @@ async function createServer() {
             const message = await twilioClient.messages.create({
               body: `Dear ${formData.name}, your booking at ${formData.temple} has been confirmed for ${formData.date} at ${formData.time}. Thank you for your support of the Kaliyampoondi Village Development Trust.`,
               from: process.env.TWILIO_PHONE_NUMBER,
-              to: "+91"+formData.mobile,
+              to: "+91" + formData.mobile,
             });
             console.log("SMS sent:", message.sid);
           } catch (smsError) {
